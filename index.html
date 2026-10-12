@@ -1,0 +1,577 @@
+"use strict";
+
+const DEFAULT_LINKS = [
+  { id: "bsky", name: "Bluesky", url: "https://bsky.app", note: "新しいつながり", icon: "🦋" },
+  { id: "roblox", name: "Roblox", url: "https://www.roblox.com", note: "ゲームの世界へ", icon: "🎮" },
+  { id: "spotify", name: "Spotify", url: "https://open.spotify.com", note: "音楽を楽しむ", icon: "🎵" },
+  { id: "twitch", name: "Twitch", url: "https://www.twitch.tv", note: "ライブ配信を見る", icon: "🟣" },
+  { id: "x", name: "X（旧Twitter）", url: "https://x.com", note: "最新の話題", icon: "𝕏" },
+  { id: "soundcloud", name: "SoundCloud", url: "https://soundcloud.com", note: "音楽を探す", icon: "🎧" },
+  { id: "discord", name: "Discord", url: "https://discord.com/app", note: "コミュニティ", icon: "💬" },
+  { id: "youtube", name: "YouTube", url: "https://www.youtube.com", note: "動画を楽しむ", icon: "▶️" },
+  { id: "instagram", name: "Instagram", url: "https://www.instagram.com", note: "写真と日常", icon: "📷" },
+  { id: "yay", name: "Yay!", url: "https://yay.space", note: "みんなと交流", icon: "👥" },
+  { id: "koetomo", name: "Koetomo", url: "https://www.google.com/search?q=Koetomo", note: "声でつながる", icon: "🎙️" }
+];
+
+const DEFAULT_CONFIG = {
+  title: "よりみちリンク",
+  hero: "好きな場所へ、ひとっ飛び。",
+  subtitle: "お気に入りの場所へ、ここから。",
+  footer: "シンプルに、心地よく。あなたのお気に入りを集めよう。",
+  theme: "natural",
+  bg: "#f7f6f0",
+  card: "#ffffff",
+  accent: "#648069",
+  text: "#344b3a",
+  radius: 16,
+  font: 15,
+  cardStyle: "soft",
+  layout: "grid",
+  columns: 3,
+  width: 1100,
+  showSubtitle: true,
+  showSearch: true,
+  showCount: true,
+  showIcons: true,
+  showNotes: true,
+  showUrls: false,
+  showFooter: true,
+  showEdit: true
+};
+
+const STORAGE_KEY = "yorimichi-portal-v1";
+
+let links = structuredClone(DEFAULT_LINKS);
+let config = { ...DEFAULT_CONFIG };
+
+const $ = (id) => document.getElementById(id);
+
+function notify(message) {
+  const toast = $("toast");
+  if (!toast) {
+    console.log(message);
+    return;
+  }
+
+  toast.textContent = message;
+  toast.hidden = false;
+
+  clearTimeout(notify.timer);
+  notify.timer = setTimeout(() => {
+    toast.hidden = true;
+  }, 2600);
+}
+
+function safeUrl(value) {
+  try {
+    const url = new URL(value);
+
+    if (!["http:", "https:"].includes(url.protocol)) {
+      return null;
+    }
+
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
+function persist() {
+  try {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ links, config })
+    );
+    return true;
+  } catch {
+    notify("保存できませんでした。");
+    return false;
+  }
+}
+
+function loadSaved() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) return;
+
+    const data = JSON.parse(saved);
+
+    if (Array.isArray(data.links)) {
+      links = data.links.filter(
+        (link) =>
+          link &&
+          typeof link.id === "string" &&
+          typeof link.name === "string" &&
+          typeof link.url === "string" &&
+          safeUrl(link.url)
+      );
+    }
+
+    if (data.config && typeof data.config === "object") {
+      config = { ...DEFAULT_CONFIG, ...data.config };
+    }
+  } catch {
+    console.error("保存データの読み込みに失敗しました。");
+  }
+}
+
+const THEMES = {
+  natural: {
+    bg: "#f7f6f0",
+    card: "#ffffff",
+    accent: "#648069",
+    text: "#344b3a"
+  },
+  ocean: {
+    bg: "#f0f6f8",
+    card: "#ffffff",
+    accent: "#367c8a",
+    text: "#254b59"
+  },
+  lavender: {
+    bg: "#f5f1f8",
+    card: "#ffffff",
+    accent: "#8670a5",
+    text: "#4c3d60"
+  },
+  mono: {
+    bg: "#ffffff",
+    card: "#f7f7f7",
+    accent: "#454545",
+    text: "#292929"
+  },
+  dark: {
+    bg: "#1d2420",
+    card: "#2b342e",
+    accent: "#9cbbA0",
+    text: "#edf3ea"
+  }
+};
+
+function applyConfig() {
+  const root = document.documentElement;
+
+  root.style.setProperty("--bg", config.bg);
+  root.style.setProperty("--card", config.card);
+  root.style.setProperty("--accent", config.accent);
+  root.style.setProperty("--text", config.text);
+  root.style.setProperty("--radius", `${config.radius}px`);
+  root.style.setProperty("--font-size", `${config.font}px`);
+  root.style.setProperty("--columns", config.columns);
+  root.style.setProperty("--max-width", `${config.width}px`);
+
+  if ($("brandTitle")) $("brandTitle").textContent = config.title;
+  if ($("heroTitle")) $("heroTitle").textContent = config.hero;
+  if ($("heroSubtitle")) {
+    $("heroSubtitle").textContent = config.subtitle;
+    $("heroSubtitle").hidden = !config.showSubtitle;
+  }
+  if ($("footerDescription")) {
+    $("footerDescription").textContent = config.footer;
+  }
+  if ($("siteFooter")) $("siteFooter").hidden = !config.showFooter;
+  if ($("searchWrap")) $("searchWrap").hidden = !config.showSearch;
+
+  document.title = config.title || "よりみちリンク";
+}
+
+function render() {
+  applyConfig();
+
+  const grid = $("linksGrid");
+  if (!grid) return;
+
+  const query = ($("searchInput")?.value || "").trim().toLowerCase();
+
+  const filtered = links.filter((link) =>
+    `${link.name} ${link.note} ${link.url}`
+      .toLowerCase()
+      .includes(query)
+  );
+
+  if ($("linkCount")) {
+    $("linkCount").textContent = `${filtered.length} 件のリンク`;
+    $("linkCount").hidden = !config.showCount;
+  }
+
+  grid.replaceChildren();
+  grid.classList.toggle("list", config.layout === "list");
+
+  if (!filtered.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = "リンクが見つかりませんでした。";
+    grid.appendChild(empty);
+    return;
+  }
+
+  filtered.forEach((link) => {
+    const card = document.createElement("article");
+    card.className = "link-card";
+
+    if (config.layout === "list") {
+      card.classList.add("list");
+    }
+
+    if (config.cardStyle === "flat") {
+      card.style.boxShadow = "none";
+    }
+
+    if (config.cardStyle === "outline") {
+      card.style.borderWidth = "2px";
+    }
+
+    const main = document.createElement("div");
+    main.className = "card-main";
+
+    if (config.showIcons) {
+      const icon = document.createElement("div");
+      icon.className = "site-icon";
+      icon.textContent = link.icon || "🔗";
+      icon.setAttribute("aria-hidden", "true");
+      main.appendChild(icon);
+    }
+
+    const info = document.createElement("div");
+    info.className = "link-info";
+
+    const title = document.createElement("h3");
+    title.textContent = link.name;
+    info.appendChild(title);
+
+    if (config.showNotes && link.note) {
+      const note = document.createElement("p");
+      note.textContent = link.note;
+      info.appendChild(note);
+    }
+
+    main.appendChild(info);
+    card.appendChild(main);
+
+    if (config.showUrls) {
+      const urlText = document.createElement("div");
+      urlText.className = "link-url";
+      urlText.textContent = link.url;
+      card.appendChild(urlText);
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "card-actions";
+
+    const open = document.createElement("a");
+    open.className = "open-link";
+    open.href = safeUrl(link.url);
+    open.target = "_blank";
+    open.rel = "noopener noreferrer";
+    open.textContent = "サイトを開く ↗";
+    actions.appendChild(open);
+
+    if (config.showEdit) {
+      const group = document.createElement("div");
+      group.className = "action-group";
+
+      const edit = document.createElement("button");
+      edit.className = "btn btn-small";
+      edit.textContent = "編集";
+      edit.type = "button";
+      edit.addEventListener("click", () => openLinkForm(link.id));
+
+      const remove = document.createElement("button");
+      remove.className = "btn btn-small btn-danger";
+      remove.textContent = "削除";
+      remove.type = "button";
+      remove.addEventListener("click", () => deleteLink(link.id));
+
+      group.append(edit, remove);
+      actions.appendChild(group);
+    }
+
+    card.appendChild(actions);
+    grid.appendChild(card);
+  });
+}
+
+function openLinkForm(id = "") {
+  const link = links.find((item) => item.id === id);
+
+  $("linkDialogTitle").textContent = link
+    ? "リンクを編集"
+    : "リンクを追加";
+
+  $("linkId").value = link?.id || "";
+  $("linkName").value = link?.name || "";
+  $("linkUrl").value = link?.url || "";
+  $("linkDescription").value = link?.note || "";
+  $("linkEmoji").value = link?.icon || "🔗";
+
+  $("linkDialog").showModal();
+}
+
+function saveLink(event) {
+  event.preventDefault();
+
+  const id = $("linkId").value;
+  const name = $("linkName").value.trim();
+  const url = safeUrl($("linkUrl").value.trim());
+
+  if (!name) return notify("サイト名を入力してください。");
+  if (!url) return notify("有効なURLを入力してください。");
+
+  const item = {
+    id: id || crypto.randomUUID(),
+    name,
+    url,
+    note: $("linkDescription").value.trim(),
+    icon: $("linkEmoji").value.trim() || "🔗"
+  };
+
+  if (id) {
+    links = links.map((link) => link.id === id ? item : link);
+  } else {
+    links.push(item);
+  }
+
+  persist();
+  render();
+  renderAdminLinks();
+  $("linkDialog").close();
+
+  notify(id ? "リンクを更新しました。" : "リンクを追加しました。");
+}
+
+function deleteLink(id) {
+  const link = links.find((item) => item.id === id);
+  if (!link) return;
+
+  if (!confirm(`「${link.name}」を削除しますか？`)) return;
+
+  links = links.filter((item) => item.id !== id);
+  persist();
+  render();
+  renderAdminLinks();
+  notify("リンクを削除しました。");
+}
+
+function renderAdminLinks() {
+  const box = $("adminLinks");
+  if (!box) return;
+
+  box.replaceChildren();
+
+  links.forEach((link) => {
+    const item = document.createElement("div");
+    item.className = "link-admin";
+
+    const top = document.createElement("div");
+    top.className = "link-admin-top";
+
+    const name = document.createElement("strong");
+    name.className = "link-admin-name";
+    name.textContent = `${link.icon || "🔗"} ${link.name}`;
+
+    const edit = document.createElement("button");
+    edit.className = "btn btn-small";
+    edit.textContent = "編集";
+    edit.type = "button";
+    edit.addEventListener("click", () => openLinkForm(link.id));
+
+    const remove = document.createElement("button");
+    remove.className = "btn btn-small btn-danger";
+    remove.textContent = "削除";
+    remove.type = "button";
+    remove.addEventListener("click", () => deleteLink(link.id));
+
+    top.append(name, edit, remove);
+
+    const url = document.createElement("div");
+    url.className = "link-admin-url";
+    url.textContent = link.url;
+
+    item.append(top, url);
+    box.appendChild(item);
+  });
+}
+
+function syncControls() {
+  document.querySelectorAll("[data-config]").forEach((element) => {
+    const key = element.dataset.config;
+    if (!(key in config)) return;
+
+    if (element.type === "checkbox") {
+      element.checked = Boolean(config[key]);
+    } else {
+      element.value = String(config[key]);
+    }
+  });
+
+  ["bg", "card", "accent", "text"].forEach((key) => {
+    const label = $(key + "Hex");
+    if (label) label.textContent = config[key];
+  });
+
+  if ($("radiusValue")) $("radiusValue").textContent = `${config.radius}px`;
+  if ($("fontValue")) $("fontValue").textContent = `${config.font}px`;
+}
+
+function exportData() {
+  return JSON.stringify({ version: 1, links, config }, null, 2);
+}
+
+function downloadData() {
+  const blob = new Blob([exportData()], {
+    type: "application/json;charset=utf-8"
+  });
+
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "yorimichi-settings.json";
+  anchor.click();
+  URL.revokeObjectURL(url);
+  notify("設定ファイルを書き出しました。");
+}
+
+function importData(file) {
+  const reader = new FileReader();
+
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+
+      if (!data || !Array.isArray(data.links) ||
+          !data.config || typeof data.config !== "object") {
+        throw new Error("Invalid format");
+      }
+
+      const importedLinks = data.links.filter((link) =>
+        link &&
+        typeof link.id === "string" &&
+        typeof link.name === "string" &&
+        typeof link.url === "string" &&
+        safeUrl(link.url)
+      );
+
+      if (!confirm("現在の設定とリンクを置き換えますか？")) return;
+
+      links = importedLinks;
+      config = { ...DEFAULT_CONFIG, ...data.config };
+
+      persist();
+      syncControls();
+      render();
+      renderAdminLinks();
+      notify("設定を復元しました。");
+    } catch {
+      notify("正しいJSONファイルを選択してください。");
+    }
+  };
+
+  reader.readAsText(file);
+}
+
+function resetAll() {
+  if (!confirm("リンクと設定を初期状態に戻しますか？")) return;
+
+  links = structuredClone(DEFAULT_LINKS);
+  config = { ...DEFAULT_CONFIG };
+
+  if ($("searchInput")) $("searchInput").value = "";
+
+  persist();
+  syncControls();
+  render();
+  renderAdminLinks();
+  notify("初期設定に戻しました。");
+}
+
+function bindEvents() {
+  $("linkForm")?.addEventListener("submit", saveLink);
+
+  $("addBtn")?.addEventListener("click", () => openLinkForm());
+  $("adminAddBtn")?.addEventListener("click", () => openLinkForm());
+
+  $("searchInput")?.addEventListener("input", render);
+
+  $("settingsBtn")?.addEventListener("click", () => {
+    syncControls();
+    renderAdminLinks();
+    $("settingsDialog").showModal();
+  });
+
+  document.querySelectorAll("[data-close]").forEach((button) => {
+    button.addEventListener("click", () => {
+      $(button.dataset.close)?.close();
+    });
+  });
+
+  document.querySelectorAll("[data-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      document.querySelectorAll("[data-tab]").forEach((tab) => {
+        tab.classList.toggle("active", tab === button);
+      });
+
+      document.querySelectorAll("[data-panel]").forEach((panel) => {
+        panel.hidden = panel.dataset.panel !== button.dataset.tab;
+      });
+    });
+  });
+
+  document.querySelectorAll("[data-config]").forEach((element) => {
+    element.addEventListener("input", () => {
+      const key = element.dataset.config;
+      let value = element.type === "checkbox"
+        ? element.checked
+        : element.value;
+
+      if (["radius", "font", "columns", "width"].includes(key)) {
+        value = Number(value);
+      }
+
+      config[key] = value;
+
+      if (key === "theme" && THEMES[value]) {
+        Object.assign(config, THEMES[value]);
+        syncControls();
+      }
+
+      syncControls();
+      render();
+    });
+  });
+
+  $("saveSettingsBtn")?.addEventListener("click", () => {
+    persist();
+    $("settingsDialog").close();
+    notify("設定を保存しました。");
+  });
+
+  $("exportBtn")?.addEventListener("click", downloadData);
+
+  $("copyBtn")?.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(exportData());
+      notify("設定JSONをコピーしました。");
+    } catch {
+      notify("コピーできませんでした。");
+    }
+  });
+
+  $("importFile")?.addEventListener("change", (event) => {
+    const file = event.target.files?.[0];
+    if (file) importData(file);
+    event.target.value = "";
+  });
+
+  $("resetBtn")?.addEventListener("click", resetAll);
+}
+
+function init() {
+  loadSaved();
+  bindEvents();
+  syncControls();
+  render();
+  renderAdminLinks();
+}
+
+document.addEventListener("DOMContentLoaded", init);
